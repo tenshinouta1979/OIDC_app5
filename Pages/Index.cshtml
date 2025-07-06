@@ -1,0 +1,219 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "App1 Home (IdP)";
+    Layout = null; // IMPORTANT: Set layout to null to ensure this page controls its full HTML structure
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@ViewData["Title"]</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Dark background */
+            color: #e2e8f0; /* Light text */
+            padding: 20px;
+            display: flex; /* Use flexbox to center content */
+            justify-content: center; /* Center horizontally */
+            align-items: center; /* Center vertically */
+            min-height: 100vh; /* Full viewport height */
+            margin: 0; /* Remove default body margin */
+        }
+        .main-content-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 900px; /* Constrain width */
+            padding: 20px;
+        }
+        .card {
+            background-color: #2d3748; /* Slightly lighter dark for cards */
+            padding: 30px; /* Adjusted padding */
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3); /* Darker shadow */
+            width: 100%; /* Full width within wrapper */
+            margin-bottom: 20px; /* Space between cards */
+        }
+        h2 {
+            font-size: 1.875rem; /* 30px */
+            font-weight: 700;
+            color: #90cdf4; /* Light blue for titles */
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4a5568; /* Darker separator */
+        }
+        p {
+            margin-bottom: 10px;
+            color: #cbd5e1; /* Light text for paragraphs */
+        }
+        .text-blue-300 {
+            color: #90cdf4; /* Ensure contrast for highlighted text */
+        }
+        .iframe-container {
+            background-color: #1f2937; /* Darker background for iframe container */
+            padding: 6px; /* Small padding around iframe */
+            border-radius: 10px;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5); /* Inner shadow for depth */
+            width: 100%;
+            height: 600px; /* Fixed height for the iframe container */
+            display: flex; /* Ensure flexbox for centering */
+            align-items: center; /* Center vertically */
+            justify-content: center; /* Center horizontally */
+            position: relative; /* For absolute positioning of loading text */
+        }
+        .loading-text {
+            position: absolute;
+            color: #a0aec0;
+            font-size: 1.5rem;
+            z-index: 1; /* Ensure text is above iframe initially */
+        }
+        iframe {
+            z-index: 2; /* Ensure iframe is above text when visible */
+        }
+        /* Added style for the logout form for better spacing */
+        .logout-form {
+            margin-top: 20px; /* Add some space above the button */
+            padding-top: 15px; /* Add padding above the button */
+            border-top: 1px solid #4a5568; /* Subtle line above the button */
+        }
+        .logout-link { /* Style for the new logout link */
+            display: inline-block;
+            background-color: #ef4444; /* Red color */
+            color: white;
+            font-weight: bold;
+            padding: 8px 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: background-color 0.2s ease-in-out, transform 0.2s ease-in-out;
+            margin-top: 20px; /* Space from content above */
+        }
+        .logout-link:hover {
+            background-color: #dc2626; /* Darker red on hover */
+            transform: scale(1.05); /* Slight scale effect */
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content-wrapper">
+        <div class="card text-center">
+            <h2 class="text-3xl font-bold text-blue-400 mb-4">Welcome to App1 (Identity Provider)</h2>
+            <p class="text-lg mb-6">
+                You are logged in as: <span class="font-semibold text-blue-300">@User.Identity?.Name</span>
+            </p>
+            <p class="text-gray-400 mb-8">
+                This application acts as our simplified OpenID Connect Identity Provider. It will embed App2 (the GIS app) below.
+                <br>
+                **Open your browser's developer console (F12) to the "Console" tab to see the authentication flow messages.**
+            </p>
+            @* Changed logout to a simple GET link for testing *@
+            <a href="?handler=Logout" class="logout-link">Logout (Test)</a>
+        </div>
+
+        <div class="iframe-container">
+            <p id="loadingText" class="loading-text">Loading App2 GIS App...</p>
+            <iframe id="app2Iframe" src="@Model.App2Origin" style="width:100%; height:100%; border:none; border-radius: 8px;" class="hidden"></iframe>
+        </div>
+    </div>
+
+    <script>
+        const app2Origin = "@Model.App2Origin"; // App2's domain
+        const oidcProviderOrigin = "@Model.App1Origin"; // App1's domain (acting as IdP)
+
+        // Helper functions for nonce and state (should be cryptographically strong in real apps)
+        function generateRandomString(length) {
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let result = '';
+            const charactersLength = characters.length;
+            for (let i = 0; i < length; i++) {
+                result += characters.charAt(Math.floor(Math.random() * charactersLength));
+            }
+            return result;
+        }
+
+        function generateNonce() {
+            return generateRandomString(32); // 32 characters for nonce
+        }
+        function generateState() {
+            return generateRandomString(32); // 32 characters for state
+        }
+
+        // Function to initiate silent OIDC authentication
+        function initiateSilentOidcAuth() {
+            console.log("App1: [Step 1] Initiating silent OIDC authentication...");
+
+            // Construct the OIDC authorization URL for silent authentication
+            const authUrl = `${oidcProviderOrigin}/connect/authorize?` +
+                            `client_id=app2_client&` + // Client ID registered for App2 in App1's IdP config
+                            `response_type=id_token token&` + // Request both ID token and Access token
+                            `scope=openid profile project_id_scope&` + // Request necessary scopes
+                            `redirect_uri=${app2Origin}/silent-refresh&` + // Point to the Razor Page route
+                            `prompt=none&` + // CRUCIAL: For silent authentication, don't show UI if already logged in
+                            `nonce=${generateNonce()}&` + // Unique value to mitigate replay attacks
+                            `state=${generateState()}`; // Opaque value to maintain state (optional for silent, but good practice)
+
+            // Create a hidden iframe to perform the silent authentication
+            const silentIframe = document.createElement('iframe');
+            silentIframe.style.display = 'none';
+            silentIframe.src = authUrl;
+            document.body.appendChild(silentIframe);
+
+            console.log("App1: [Step 2] Hidden iframe created for silent auth. URL:", authUrl);
+
+            // Listen for messages from the silent iframe (which will redirect to app2Origin/silent-refresh)
+            window.addEventListener('message', (event) => {
+                console.log("App1: [Step 3] Received message from origin:", event.origin, "with data:", event.data);
+
+                // IMPORTANT: Validate the origin of the message
+                if (event.origin !== app2Origin) {
+                    console.error("App1: [Step 3 ERROR] Message from untrusted origin:", event.origin);
+                    return;
+                }
+
+                // The silent-refresh page on App2 will postMessage the tokens back
+                if (event.data && event.data.id_token) {
+                    console.log("App1: [Step 4 SUCCESS] Received tokens from silent OIDC (from App2's silent-refresh). ID Token length:", event.data.id_token.length);
+                    // Now, post these tokens to the main App2 iframe
+                    const app2Iframe = document.getElementById('app2Iframe');
+                    const loadingText = document.getElementById('loadingText');
+                    if (app2Iframe && app2Iframe.contentWindow) {
+                        app2Iframe.contentWindow.postMessage(event.data, app2Origin);
+                        console.log("App1: [Step 5] Tokens sent to visible App2 iframe.");
+                        // Show the App2 iframe after tokens are sent
+                        app2Iframe.classList.remove('hidden');
+                        loadingText.classList.add('hidden'); // Hide "Loading App2" text
+                    } else {
+                        console.error("App1: [Step 5 ERROR] App2 iframe or its contentWindow not found.");
+                    }
+                    // Clean up the silent iframe
+                    document.body.removeChild(silentIframe);
+                } else if (event.data && event.data.error) {
+                    console.error("App1: [Step 4 ERROR] Silent OIDC error received:", event.data.error);
+                    if (event.data.error === "login_required") {
+                        alert("Your session with App1 (IdP) has expired. Please log in again.");
+                        window.location.href = "/login"; // Redirect to App1's login page
+                    }
+                    // Clean up the silent iframe
+                    document.body.removeChild(silentIframe);
+                } else {
+                    console.warn("App1: [Step 4 WARN] Received message from App2 but no tokens or error found:", event.data);
+                }
+            });
+        }
+
+        // Re-enabled the silent auth initiation on iframe load
+        document.getElementById('app2Iframe').onload = () => {
+            console.log("App1: [Step 0] Main App2 iframe loaded.");
+            initiateSilentOidcAuth(); // Call the silent OIDC authentication flow
+        };
+
+        // Removed client-side authentication check as it's now handled server-side in Index.cshtml.cs
+    </script>
+</body>
+</html>

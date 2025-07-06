@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="..\build\OIDC_app5.props" />
+</Project>
