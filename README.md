@@ -118,73 +118,7 @@ Our path to a working solution involved addressing several issues, often requiri
 This journey highlights the intricacies of cross-domain authentication and the importance of meticulous logging and step-by-step debugging to isolate issues in distributed systems.
 
 
-
-# OpenID Connect Silent Authentication Flow
-## App1 (Identity Provider) & App2 (Relying Party in Iframe)
-
-
-1. OIDC Silent Authentication Flow Diagram (Text-Based)
-This diagram illustrates the primary flow of authentication, including the silent refresh mechanism and token validation.
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant B as Browser (User Agent)
-    participant A1F as App1 Frontend (IdP UI)
-    participant A1B as App1 Backend (IdP Server)
-    participant A2F as App2 Frontend (RP UI - in iframe)
-    participant A2B as App2 Backend (RP Server)
-
-    Note over U,A2B: Initial Login & App2 Embedding Flow
-
-    U->>B: 1. Navigates to App1 (https://localhost:7188/)
-    B->>A1F: 2. GET / (App1 Home)
-    A1F-->>B: 3. Login Page HTML
-    U->>B: 4. Enters Credentials, Clicks Login
-    B->>A1B: 5. POST /login (Username, Password)
-    A1B->>A1B: 6. Authenticates User
-    A1B-->>B: 7. Sets App1 Auth Cookie (for localhost:7188)
-    A1B-->>B: 8. Redirects to App1 Home (https://localhost:7188/)
-
-    B->>A1F: 9. GET / (App1 Home - now authenticated)
-    A1F-->>B: 10. App1 Home HTML (includes primary hidden iframe for App2)
-    Note over B,A2F: Primary App2 Iframe (https://localhost:7084/) loads
-    B->>A2F: 11. GET https://localhost:7084/ (Initial App2 Load in iframe)
-    A2F-->>B: 12. App2 HTML (Unauthenticated State)
-
-    Note over A1F,A2B: Silent Authentication Flow (Hidden Iframe)
-
-    A1F->>B: 13. JS: Creates hidden iframe
-    B->>A1B: 14. GET /connect/authorize?prompt=none&redirect_uri=https://localhost:7084/silent-refresh&... (via hidden iframe)
-    A1B->>A1B: 15. Validates Request, Checks App1 Auth Cookie (User is authenticated)
-    A1B->>A1B: 16. Generates ID Token (JWT) & Access Token (JWT)
-    A1B-->>B: 17. Redirects hidden iframe to https://localhost:7084/silent-refresh#id_token=...&access_token=...
-
-    B->>A2F: 18. Loads https://localhost:7084/silent-refresh (with URL fragment)
-    A2F->>A2F: 19. JS: Parses window.location.hash to extract ID Token & Access Token
-    A2F->>A1F: 20. window.parent.postMessage({id_token, access_token}, "https://localhost:7188")
-
-    Note over A1F,A2B: Token Passing to Visible Iframe & App2 Session Establishment
-
-    A1F->>A2F: 21. JS: app2Iframe.contentWindow.postMessage({id_token, access_token}, "https://localhost:7084")
-    A2F->>A2B: 22. POST /api/auth/validate-oidc-token (JSON body: {idToken, accessToken})
-    A2B->>A2B: 23. Validates ID Token (signature, issuer, audience, lifetime)
-    A2B->>A2B: 24. Establishes App2 Session (sets App2 Auth Cookie for localhost:7084)
-    A2B-->>A2F: 25. Returns JSON: {success: true, userId, projectId}
-
-    A2F->>A2F: 26. JS: Updates UI to "Authenticated", displays user/project ID
-    A1F->>A2F: 27. JS: Makes primary App2 iframe visible
-
-    Note over U,A2B: Logout Flow
-
-    U->>B: 28. Clicks Logout (on App1)
-    B->>A1B: 29. GET /Index?handler=Logout
-    A1B->>A1B: 30. Clears App1 Auth Cookie
-    A1B-->>B: 31. Redirects to App1 Login Page (https://localhost:7188/login)
-
-
-
-2. Animation Prompt Script
+Animation Prompt Script
 This script describes a series of scenes suitable for generating an animation. Imagine a clean, modern aesthetic with clear labels and smooth transitions.
 
 
